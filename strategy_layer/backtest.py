@@ -403,6 +403,8 @@ def _generate_signal(
         return _rsi_reversal_signal(bars, params, symbol)
     elif strategy_type == "interval_test":
         return _interval_test_signal(bars, params, symbol, strategy_id)
+    elif strategy_type == "support_resistance":
+        return _support_resistance_signal(bars, params, symbol)
     log.warning("Unknown strategy type for backtest: %s", strategy_type)
     return None
 
@@ -489,6 +491,23 @@ def _interval_test_signal(
 # Backtest interval-test state (separate from live strategy state)
 _bt_interval_last: Dict[str, float] = {}
 _bt_interval_parity: Dict[str, int] = {}
+
+
+def _support_resistance_signal(
+    bars: List[BarData],
+    params: Dict[str, Any],
+    symbol: str,
+) -> Optional[Dict[str, Any]]:
+    """Support/resistance bounce signal for backtest."""
+    from .strategies.support_resistance import generate_signals as sr_signal
+    sig = sr_signal(bars, params, "backtest", symbol)
+    if sig is None:
+        return None
+    return {
+        "direction": sig.direction.value,
+        "price": sig.price or bars[-1].close,
+        "reason": sig.reason,
+    }
 
 
 # ── Async Backtest Task Manager ────────────────────────────────────────

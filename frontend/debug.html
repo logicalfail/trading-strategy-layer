@@ -307,6 +307,7 @@ input[type=date]{color-scheme:dark}
               <option value="ma_cross">均线交叉 (MA Cross)</option>
               <option value="rsi_reversal">RSI 反转</option>
               <option value="interval_test">定时测试 (Interval)</option>
+              <option value="support_resistance">支撑阻力反弹 (SR Bounce)</option>
             </select>
           </div>
           <div class="form-group">
@@ -431,6 +432,7 @@ input[type=date]{color-scheme:dark}
               <option value="ma_cross">均线交叉</option>
               <option value="rsi_reversal">RSI 反转</option>
               <option value="interval_test">定时测试</option>
+              <option value="support_resistance">支撑阻力反弹</option>
             </select>
         </div>
         <div class="form-group">
@@ -782,6 +784,8 @@ function updateParamsForType() {
     ta.value = JSON.stringify({rsi_period: 14, oversold_threshold: 30, overbought_threshold: 70}, null, 2);
   } else if (type === 'interval_test') {
     ta.value = JSON.stringify({interval_minutes: 5, start_direction: 'BUY', qty: 1}, null, 2);
+  } else if (type === 'support_resistance') {
+    ta.value = JSON.stringify({lookback: 100, swing_window: 5, rsi_period: 14, oversold: 30, overbought: 70, bounce_atr: 0.3, require_trend: true, trend_ma_period: 200, qty: 1}, null, 2);
   }
 }
 
@@ -866,6 +870,8 @@ function updateBtParamsForType() {
     ta.value = JSON.stringify({rsi_period: 14, oversold_threshold: 30, overbought_threshold: 70});
   } else if (type === 'interval_test') {
     ta.value = JSON.stringify({interval_minutes: 5, start_direction: 'BUY', qty: 1});
+  } else if (type === 'support_resistance') {
+    ta.value = JSON.stringify({lookback: 100, swing_window: 3, rsi_period: 14, oversold: 30, overbought: 70, bounce_atr: 0.8, require_trend: true, trend_ma_period: 200, qty: 1});
   }
 }
 document.getElementById('btType')?.addEventListener('change', updateBtParamsForType);
