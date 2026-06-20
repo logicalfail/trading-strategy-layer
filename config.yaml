@@ -1,0 +1,31 @@
+# Trading Strategy Layer — 配置
+# 遵循 futures_demo + execution_layer 的 YAML + dataclass 模式
+
+server:
+  host: "127.0.0.1"
+  port: 8004
+
+# futures_demo 行情服务地址
+data_source:
+  base_url: "http://127.0.0.1:7999"
+  request_timeout_sec: 30.0
+
+# trading_execution_layer 下单服务地址
+execution_layer:
+  base_url: "http://127.0.0.1:8003"
+  request_timeout_sec: 30.0
+  # 默认执行上下文ID（需在 execution_layer 中预先创建）
+  default_context_id: "default"
+  # 下单使用的 scenario_id（需在 mouse_replicator 中录制）
+  default_scenario_id: ""
+
+# 策略运行配置
+strategy:
+  poll_interval_seconds: 60       # 轮询间隔
+  trading_hours_only: true        # 是否仅在交易时段运行
+  max_position_per_symbol: 10     # 单品种最大持仓（手）
+
+# 存储配置
+storage:
+  type: "sqlite"
+  path: "./data/strategy_layer.db"

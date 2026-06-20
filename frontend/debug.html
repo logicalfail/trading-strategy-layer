@@ -1,0 +1,1370 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>策略层调试面板</title>
+<style>
+/* ═══ Reset & Base ═══ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:#0a0e17;color:#e2e8f0;min-height:100vh;overflow-x:hidden}
+code,.mono{font-family:'Cascadia Code','JetBrains Mono','Fira Code',monospace}
+
+/* ═══ Variables ═══ */
+:root{
+  --bg:#0a0e17; --bg2:#111827; --bg3:#1e293b; --bg4:#334155;
+  --text:#e2e8f0; --text2:#94a3b8; --text3:#64748b;
+  --green:#22c55e; --red:#ef4444; --blue:#3b82f6; --amber:#f59e0b;
+  --cyan:#06b6d4; --purple:#a855f7;
+  --border:#1e293b; --radius:8px; --shadow:0 1px 3px rgba(0,0,0,.4);
+}
+
+/* ═══ Layout ═══ */
+.app{max-width:1440px;margin:0 auto;padding:16px 20px}
+.header{display:flex;align-items:center;justify-content:space-between;padding:12px 0 20px;border-bottom:1px solid var(--border);margin-bottom:20px}
+.header h1{font-size:1.25rem;font-weight:600;letter-spacing:-.02em}
+.header h1 span{color:var(--cyan)}
+.header-right{display:flex;align-items:center;gap:16px}
+.health-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px}
+.health-dot.ok{background:var(--green);box-shadow:0 0 6px var(--green)}
+.health-dot.degraded{background:var(--amber);box-shadow:0 0 6px var(--amber)}
+.health-dot.down{background:var(--red);box-shadow:0 0 6px var(--red)}
+.health-label{font-size:.75rem;color:var(--text2)}
+
+/* ═══ Status Bar ═══ */
+.status-bar{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.status-item{display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--bg2);border-radius:var(--radius);border:1px solid var(--border);font-size:.8rem}
+.status-item .label{color:var(--text3)}
+.status-item .value{font-weight:600;font-family:inherit}
+.engine-running{color:var(--green)}
+.engine-stopped{color:var(--red)}
+
+/* ═══ Stats Grid ═══ */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+.stat-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center}
+.stat-card .num{font-size:1.8rem;font-weight:700;font-family:'Cascadia Code',monospace;line-height:1.2}
+.stat-card .num.green{color:var(--green)}
+.stat-card .num.blue{color:var(--blue)}
+.stat-card .num.amber{color:var(--amber)}
+.stat-card .num.purple{color:var(--purple)}
+.stat-card .lbl{font-size:.7rem;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-top:4px}
+
+/* ═══ Cards ═══ */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:16px;overflow:hidden}
+.card-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border);font-size:.85rem;font-weight:600}
+.card-header .badge{font-size:.65rem;padding:2px 8px;border-radius:10px;background:var(--bg4);color:var(--text2);font-weight:400}
+.card-body{padding:16px}
+.card-footer{padding:10px 16px;border-top:1px solid var(--border);background:rgba(0,0,0,.15)}
+
+/* ═══ Tables ═══ */
+table{width:100%;border-collapse:collapse;font-size:.78rem}
+th{text-align:left;padding:8px 10px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);white-space:nowrap;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em}
+td{padding:7px 10px;border-bottom:1px solid rgba(30,41,59,.5);vertical-align:middle}
+tr:hover td{background:rgba(59,130,246,.04)}
+tr:last-child td{border-bottom:none}
+td .tag{display:inline-block;padding:1px 8px;border-radius:4px;font-size:.7rem;font-weight:500}
+.tag.buy{background:rgba(34,197,94,.15);color:var(--green)}
+.tag.sell{background:rgba(239,68,68,.15);color:var(--red)}
+.tag.running{background:rgba(34,197,94,.15);color:var(--green)}
+.tag.stopped{background:rgba(100,116,139,.2);color:var(--text2)}
+.tag.confirmed{background:rgba(34,197,94,.15);color:var(--green)}
+.tag.failed{background:rgba(239,68,68,.15);color:var(--red)}
+.tag.pending{background:rgba(245,158,11,.15);color:var(--amber)}
+
+/* ═══ Buttons ═══ */
+.btn{display:inline-flex;align-items:center;gap:4px;padding:5px 12px;border:none;border-radius:5px;font-size:.72rem;font-weight:500;cursor:pointer;transition:all .15s;font-family:inherit}
+.btn-sm{padding:3px 8px;font-size:.65rem}
+.btn-primary{background:var(--blue);color:#fff}
+.btn-primary:hover{background:#2563eb}
+.btn-success{background:var(--green);color:#fff;opacity:.9}
+.btn-success:hover{opacity:1}
+.btn-danger{background:var(--red);color:#fff;opacity:.9}
+.btn-danger:hover{opacity:1}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--text2)}
+.btn-outline:hover{border-color:var(--text2);color:var(--text)}
+.btn-ghost{background:transparent;color:var(--text2);padding:3px 6px}
+.btn-ghost:hover{color:var(--text);background:rgba(255,255,255,.05)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* ═══ Forms ═══ */
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.form-group{margin-bottom:10px}
+.form-group label{display:block;font-size:.72rem;color:var(--text3);margin-bottom:3px}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:7px 10px;background:var(--bg3);border:1px solid var(--bg4);border-radius:5px;color:var(--text);font-size:.78rem;font-family:inherit;outline:none;transition:border-color .15s}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--blue)}
+.form-group textarea{resize:vertical;min-height:60px;font-family:'Cascadia Code',monospace;font-size:.72rem}
+.form-group select{cursor:pointer}
+.form-group select option{background:var(--bg2)}
+
+/* ═══ Strategy Row ─────────────────────── */
+.strategy-row{padding:10px 0;border-bottom:1px solid rgba(30,41,59,.5)}
+.strategy-row:last-child{border-bottom:none}
+.strategy-row .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.strategy-row .name{font-weight:600;font-size:.85rem}
+.strategy-row .meta{display:flex;gap:16px;font-size:.72rem;color:var(--text3)}
+.strategy-row .actions{display:flex;gap:6px}
+
+/* ═══ Modal ═══ */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:12px;width:520px;max-width:90vw;max-height:85vh;overflow-y:auto}
+.modal-header{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)}
+.modal-header h2{font-size:1rem;font-weight:600}
+.modal-close{background:none;border:none;color:var(--text3);font-size:1.3rem;cursor:pointer;padding:0 4px}
+.modal-close:hover{color:var(--text)}
+.modal-body{padding:20px}
+.modal-footer{padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
+
+/* ═══ Signal/Trade detail modal ═══ */
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:.78rem}
+.detail-grid .item{padding:8px;background:var(--bg3);border-radius:4px}
+.detail-grid .item .dk{font-size:.65rem;color:var(--text3);margin-bottom:2px}
+.detail-grid .item .dv{font-family:'Cascadia Code',monospace;font-size:.78rem}
+
+/* ═══ Toast ═══ */
+.toast-container{position:fixed;top:16px;right:16px;z-index:200;display:flex;flex-direction:column;gap:8px}
+.toast{padding:10px 16px;border-radius:6px;font-size:.78rem;animation:slideIn .2s ease;min-width:200px}
+.toast.success{background:rgba(34,197,94,.15);border:1px solid rgba(34,197,94,.3);color:var(--green)}
+.toast.error{background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);color:var(--red)}
+.toast.info{background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);color:var(--blue)}
+@keyframes slideIn{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:translateX(0)}}
+
+/* ═══ Misc ═══ */
+.empty-state{padding:24px;text-align:center;color:var(--text3);font-size:.82rem}
+.flex{display:flex;gap:8px;align-items:center}
+.gap-4{gap:4px}
+.ml-auto{margin-left:auto}
+.text-truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px}
+.w-full{width:100%}
+.mt-8{margin-top:8px}
+.mb-8{margin-bottom:8px}
+
+/* ═══ Backtest ═══ */
+.backtest-section{margin-top:24px;padding-top:20px;border-top:1px solid var(--border)}
+.backtest-section h2{font-size:1rem;font-weight:600;margin-bottom:16px;color:var(--cyan)}
+.backtest-section h2::before{content:"▣ ";color:var(--cyan)}
+.bt-config{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+.bt-config .full{grid-column:1/-1}
+.bt-params-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.bt-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:16px}
+.bt-metric{background:var(--bg3);border-radius:6px;padding:12px;text-align:center}
+.bt-metric .val{font-size:1.3rem;font-weight:700;font-family:'Cascadia Code',monospace}
+.bt-metric .val.green{color:var(--green)}.bt-metric .val.red{color:var(--red)}
+.bt-metric .val.blue{color:var(--blue)}.bt-metric .val.amber{color:var(--amber)}
+.bt-metric .lbl{font-size:.65rem;color:var(--text3);margin-top:2px;text-transform:uppercase;letter-spacing:.04em}
+.chart-wrap{background:var(--bg3);border-radius:6px;padding:12px;position:relative;overflow:hidden}
+.chart-wrap canvas{display:block;width:100%;height:320px}
+.chart-legend{display:flex;gap:16px;margin-top:8px;font-size:.72rem;color:var(--text2);justify-content:center}
+.chart-legend span{display:flex;align-items:center;gap:4px}
+.legend-buy{color:var(--green)}.legend-sell{color:var(--red)}
+.bt-trades{margin-top:12px;max-height:200px;overflow-y:auto}
+.bt-trades table{font-size:.72rem;width:100%}
+.bt-trades th{position:sticky;top:0;background:var(--bg2);z-index:1}
+.bt-loading{text-align:center;padding:32px;color:var(--text3)}
+.bt-loading .spinner{display:inline-block;width:24px;height:24px;border:2px solid var(--bg4);border-top-color:var(--cyan);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+input[type=date]{color-scheme:dark}
+
+/* ═══ Tab Navigation ═══ */
+.tabs{display:flex;gap:0;margin-bottom:20px;border-bottom:2px solid var(--border)}
+.tab{padding:10px 24px;font-size:.82rem;font-weight:500;background:transparent;border:none;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s}
+.tab:hover{color:var(--text2)}
+.tab.active{color:var(--cyan);border-bottom-color:var(--cyan)}
+.tab-content{display:none}
+.tab-content.active{display:block}
+
+/* ═══ Responsive ═══ */
+@media(max-width:768px){
+  .form-row{grid-template-columns:1fr}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .status-bar{gap:6px}
+  .status-item{font-size:.7rem;padding:6px 10px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ═══ Header ═══ -->
+  <header class="header">
+    <h1>◈ <span>策略</span>引擎 <span style="font-size:.65rem;color:var(--text3);font-weight:400">调试</span></h1>
+    <div class="header-right">
+      <span class="health-label"><span class="health-dot ok" id="healthData"></span><span id="healthLabel">检查中...</span></span>
+      <span class="health-label"><span class="health-dot ok" id="healthExec"></span><span id="healthExecLabel">执行层</span></span>
+      <button class="btn btn-outline btn-sm" onclick="refreshAll()">⟳ 刷新</button>
+      <span id="lastUpdate" style="font-size:.7rem;color:var(--text3)"></span>
+    </div>
+  </header>
+
+  <!-- ═══ Tab Navigation ═══ -->
+  <div class="tabs">
+    <button class="tab active" data-tab="dashboard" onclick="switchTab('dashboard')">📊 仪表盘</button>
+    <button class="tab" data-tab="backtest" onclick="switchTab('backtest')">🔄 回测</button>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- Tab: Dashboard -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div id="tab-dashboard" class="tab-content active">
+
+    <div class="status-bar" id="statusBar">
+      <div class="status-item"><span class="label">引擎</span> <span class="value" id="engineStatus">—</span></div>
+      <div class="status-item"><span class="label">运行时间</span> <span class="value" id="engineUptime">—</span></div>
+      <div class="status-item"><span class="label">策略数</span> <span class="value" id="engineStrategies">—</span></div>
+      <div class="status-item"><span class="label">上次轮询</span> <span class="value" id="lastPoll">—</span></div>
+    </div>
+
+    <div class="stats" id="statsRow">
+      <div class="stat-card"><div class="num blue" id="statActive">0</div><div class="lbl">活跃策略</div></div>
+      <div class="stat-card"><div class="num amber" id="statSignals">0</div><div class="lbl">总信号数</div></div>
+      <div class="stat-card"><div class="num green" id="statTrades">0</div><div class="lbl">总交易数</div></div>
+      <div class="stat-card"><div class="num purple" id="statPositions">0</div><div class="lbl">持仓数</div></div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:16px">
+      <div>
+        <div class="card" id="strategiesCard">
+          <div class="card-header">
+            <span>策略列表</span>
+            <button class="btn btn-primary btn-sm" onclick="openCreateModal()">+ 新建</button>
+          </div>
+          <div class="card-body" id="strategiesBody" style="padding:0 16px">
+            <div class="empty-state">暂无策略配置</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span>最近信号</span>
+            <span class="badge" id="signalCount">0</span>
+          </div>
+          <div class="card-body" style="padding:0;overflow-x:auto">
+            <table><thead><tr>
+              <th>时间</th><th>合约</th><th>方向</th><th>数量</th><th>价格</th><th>置信度</th><th>原因</th>
+            </tr></thead><tbody id="signalsBody"></tbody></table>
+            <div class="empty-state" id="signalsEmpty">暂无信号</div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <div class="card-header">
+            <span>交易日志</span>
+            <span class="badge" id="tradeCount">0</span>
+          </div>
+          <div class="card-body" style="padding:0;overflow-x:auto">
+            <table><thead><tr>
+              <th>时间</th><th>合约</th><th>方向</th><th>数量</th><th>状态</th>
+            </tr></thead><tbody id="tradesBody"></tbody></table>
+            <div class="empty-state" id="tradesEmpty">暂无交易</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span>当前持仓</span>
+            <span class="badge" id="positionCount">0</span>
+          </div>
+          <div class="card-body" style="padding:0;overflow-x:auto">
+            <table><thead><tr>
+              <th>合约</th><th>方向</th><th>数量</th><th>更新时间</th>
+            </tr></thead><tbody id="positionsBody"></tbody></table>
+            <div class="empty-state" id="positionsEmpty">暂无持仓</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><span>操作</span></div>
+          <div class="card-body" style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-outline btn-sm" onclick="triggerPoll()">▶ 立即轮询</button>
+            <button class="btn btn-outline btn-sm" onclick="refreshAll()">⟳ 全部刷新</button>
+            <button class="btn btn-outline btn-sm" onclick="openSignalDetail()">🔍 信号详情</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer style="margin-top:24px;padding:12px 0;border-top:1px solid var(--border);text-align:center;font-size:.7rem;color:var(--text3)">
+      策略层 v0.1.0 — 调试面板
+    </footer>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <!-- Tab: Backtest -->
+  <!-- ═══════════════════════════════════════════════════════ -->
+  <div id="tab-backtest" class="tab-content">
+
+    <!-- Config Form -->
+    <div class="card">
+      <div class="card-header"><span>回测配置</span></div>
+      <div class="card-body">
+        <div class="bt-config">
+          <div class="form-group">
+            <label>策略类型</label>
+            <select id="btType">
+              <option value="ma_cross">均线交叉 (MA Cross)</option>
+              <option value="rsi_reversal">RSI 反转</option>
+              <option value="interval_test">定时测试 (Interval)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>合约代码</label>
+            <input id="btSymbol" value="RB2609.SHFE" placeholder="例如 RB2609.SHFE">
+          </div>
+          <div class="form-group">
+            <label>K线周期</label>
+            <select id="btPeriod">
+              <option value="1m">1m</option><option value="5m">5m</option>
+              <option value="15m">15m</option><option value="1h">1h</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>参数 (JSON)</label>
+            <textarea id="btParams" rows="2">{"fast_ma":5,"slow_ma":20,"ma_type":"SMA"}</textarea>
+          </div>
+          <div class="form-group">
+            <label>开始日期</label>
+            <input id="btStart" type="date" value="2026-05-01">
+          </div>
+          <div class="form-group">
+            <label>结束日期</label>
+            <input id="btEnd" type="date" value="2026-06-13">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary" onclick="startBacktest()">▶ 开始回测</button>
+          <button class="btn btn-outline btn-sm" onclick="loadBacktestHistory()">📋 历史记录</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Running Tasks -->
+    <div class="card" id="btTaskListCard">
+      <div class="card-header">
+        <span>回测任务列表</span>
+        <span class="badge" id="btTaskCount">0</span>
+      </div>
+      <div class="card-body" style="padding:0;max-height:320px;overflow-y:auto">
+        <table><thead><tr>
+          <th>状态</th><th>策略</th><th>合约</th><th>区间</th><th>参数</th><th>时间</th><th>操作</th>
+        </tr></thead><tbody id="btTasksBody"></tbody></table>
+        <div class="empty-state" id="btTasksEmpty">暂无回测任务，在上方配置并点击"开始回测"</div>
+      </div>
+    </div>
+
+    <!-- Results Area -->
+    <div id="btResults" style="display:none">
+      <!-- Metrics -->
+      <div class="bt-metrics" id="btMetrics"></div>
+      <!-- Chart -->
+      <div class="card">
+        <div class="card-header"><span>价格走势与买卖点</span></div>
+        <div class="card-body">
+          <div class="chart-wrap">
+            <canvas id="btChart"></canvas>
+          </div>
+          <div class="chart-legend">
+            <span>─ <span style="color:var(--cyan)">价格</span></span>
+            <span class="legend-buy">▲ 买入</span>
+            <span class="legend-sell">▼ 卖出</span>
+          </div>
+        </div>
+      </div>
+      <!-- Trades Table -->
+      <div class="card">
+        <div class="card-header"><span>交易明细</span> <span class="badge" id="btTradeCount">0</span></div>
+        <div class="card-body bt-trades" style="padding:0">
+          <table><thead><tr>
+            <th>开仓时间</th><th>方向</th><th>开仓价</th><th>平仓价</th><th>盈亏</th><th>原因</th>
+          </tr></thead><tbody id="btTradesBody"></tbody></table>
+          <div class="empty-state" id="btTradesEmpty">暂无交易</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- History Modal (simple inline) -->
+    <div class="card" id="btHistoryCard" style="display:none;margin-top:12px">
+      <div class="card-header">
+        <span>回测历史</span>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('btHistoryCard').style.display='none'">✕</button>
+      </div>
+      <div class="card-body" style="padding:0;max-height:300px;overflow-y:auto">
+        <table><thead><tr>
+          <th>策略</th><th>合约</th><th>区间</th><th>交易数</th><th>胜率</th><th>盈亏</th><th>夏普</th><th>时间</th><th>操作</th>
+        </tr></thead><tbody id="btHistoryBody"></tbody></table>
+        <div class="empty-state" id="btHistoryEmpty">暂无回测记录</div>
+      </div>
+    </div>
+  </div>
+
+    <footer style="margin-top:24px;padding:12px 0;border-top:1px solid var(--border);text-align:center;font-size:.7rem;color:var(--text3)">
+      策略层 v0.1.0 — 回测面板
+    </footer>
+  </div>
+
+</div>
+
+<!-- ═══ Create Strategy Modal ═══ -->
+<div class="modal-overlay" id="createModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>新建策略</h2>
+      <button class="modal-close" onclick="closeCreateModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>策略名称</label>
+          <input id="fName" value="RB MA Cross" placeholder="策略名称">
+        </div>
+        <div class="form-group">
+          <label>合约代码</label>
+          <input id="fSymbol" value="RB2609.SHFE" placeholder="例如 RB2609.SHFE">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>策略类型</label>
+            <select id="fType">
+              <option value="ma_cross">均线交叉</option>
+              <option value="rsi_reversal">RSI 反转</option>
+              <option value="interval_test">定时测试</option>
+            </select>
+        </div>
+        <div class="form-group">
+          <label>K线周期</label>
+          <select id="fPeriod">
+            <option value="1m">1m</option><option value="5m">5m</option>
+            <option value="15m">15m</option><option value="1h">1h</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>策略参数 (JSON)</label>
+        <textarea id="fParams" rows="3">{"fast_ma": 5, "slow_ma": 20, "ma_type": "SMA"}</textarea>
+      </div>
+      <div class="form-group">
+        <label>风控参数 (JSON)</label>
+        <textarea id="fRisk" rows="2">{"max_position_qty": 10, "cooldown_minutes": 30, "allow_short": true}</textarea>
+      </div>
+      <div class="form-group">
+        <label>描述</label>
+        <input id="fDesc" placeholder="可选描述">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeCreateModal()">取消</button>
+      <button class="btn btn-primary" onclick="createStrategy()">创建</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Signal Detail Modal ═══ -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>信号详情</h2>
+      <button class="modal-close" onclick="closeDetailModal()">&times;</button>
+    </div>
+    <div class="modal-body" id="detailBody">
+      <p class="empty-state">选择一个信号查看详情</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Toast Container ═══ -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════════════════
+let engineStatus = null;
+let strategies = [];
+let signals = [];
+let trades = [];
+let positions = [];
+let autoRefresh = true;
+let refreshInterval = null;
+
+const API_BASE = '';
+
+// ═══════════════════════════════════════════════════════
+// Tab switching
+// ═══════════════════════════════════════════════════════
+function switchTab(name) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  const tabEl = document.getElementById('tab-' + name);
+  const btnEl = document.querySelector(`.tab[data-tab="${name}"]`);
+  if (tabEl) tabEl.classList.add('active');
+  if (btnEl) btnEl.classList.add('active');
+
+  // Load backtest data when switching to backtest tab
+  if (name === 'backtest') {
+    loadBacktestTaskList();
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// Fetch helpers
+// ═══════════════════════════════════════════════════════
+async function api(path, opts = {}) {
+  try {
+    const r = await fetch(API_BASE + path, {
+      headers: {'Content-Type': 'application/json', ...opts.headers},
+      ...opts,
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+    return await r.json();
+  } catch (e) {
+    console.error(`API ${path}:`, e);
+    return null;
+  }
+}
+
+function apiPost(path, body) {
+  return api(path, {method: 'POST', body: JSON.stringify(body)});
+}
+
+function apiDelete(path) {
+  return api(path, {method: 'DELETE'});
+}
+
+// ═══════════════════════════════════════════════════════
+// Toast
+// ═══════════════════════════════════════════════════════
+function toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = msg;
+  document.getElementById('toastContainer').appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+// ═══════════════════════════════════════════════════════
+// Data Loading
+// ═══════════════════════════════════════════════════════
+async function loadEngineStatus() {
+  const data = await api('/api/engine/status');
+  if (!data) {
+    document.getElementById('engineStatus').innerHTML = '<span class="engine-stopped">离线</span>';
+    return;
+  }
+  engineStatus = data;
+  const statusEl = document.getElementById('engineStatus');
+  statusEl.innerHTML = data.is_running
+    ? '<span class="engine-running">● 运行中</span>'
+    : '<span class="engine-stopped">● 已停止</span>';
+
+  document.getElementById('engineStrategies').textContent = `${data.active_strategies}/${data.strategies.length}`;
+  document.getElementById('lastPoll').textContent = data.last_poll_ts
+    ? new Date(data.last_poll_ts).toLocaleTimeString() : '从未';
+
+  if (data.uptime_seconds) {
+    const h = Math.floor(data.uptime_seconds / 3600);
+    const m = Math.floor((data.uptime_seconds % 3600) / 60);
+    document.getElementById('engineUptime').textContent = `${h}时${m}分`;
+  }
+
+  document.getElementById('statActive').textContent = data.active_strategies;
+}
+
+async function loadHealth() {
+  const data = await api('/api/health');
+  if (!data) {
+    document.getElementById('healthData').className = 'health-dot down';
+    document.getElementById('healthLabel').textContent = '离线';
+    return;
+  }
+  const dataOk = data.data_source_connected;
+  const execOk = data.execution_layer_connected;
+
+  document.getElementById('healthData').className = 'health-dot ' + (dataOk ? 'ok' : 'degraded');
+  document.getElementById('healthLabel').textContent = dataOk ? '行情正常' : '行情 ⚠';
+
+  document.getElementById('healthExec').className = 'health-dot ' + (execOk ? 'ok' : 'degraded');
+  document.getElementById('healthExecLabel').textContent = execOk ? '执行正常' : '执行 ⚠';
+}
+
+async function loadStrategies() {
+  const data = await api('/api/strategies');
+  strategies = data?.strategies || [];
+  renderStrategies();
+}
+
+async function loadSignals() {
+  const data = await api('/api/signals?limit=20');
+  signals = data?.signals || [];
+  renderSignals();
+  document.getElementById('signalCount').textContent = signals.length;
+  document.getElementById('statSignals').textContent = signals.length;
+}
+
+async function loadTrades() {
+  const data = await api('/api/trades?limit=20');
+  trades = data?.trades || [];
+  renderTrades();
+  document.getElementById('tradeCount').textContent = trades.length;
+  document.getElementById('statTrades').textContent = trades.length;
+}
+
+async function loadPositions() {
+  const data = await api('/api/positions');
+  positions = data?.positions || [];
+  renderPositions();
+  document.getElementById('positionCount').textContent = positions.length;
+  document.getElementById('statPositions').textContent = positions.length;
+}
+
+async function refreshAll() {
+  document.getElementById('lastUpdate').textContent = '刷新中...';
+  await Promise.all([
+    loadEngineStatus(), loadHealth(), loadStrategies(),
+    loadSignals(), loadTrades(), loadPositions(),
+    loadBacktestTaskList(),
+  ]);
+  document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+}
+
+// ═══════════════════════════════════════════════════════
+// Render Functions
+// ═══════════════════════════════════════════════════════
+function renderStrategies() {
+  const body = document.getElementById('strategiesBody');
+  if (!strategies.length) {
+    body.innerHTML = '<div class="empty-state">暂无策略配置。点击"+ 新建"创建策略。</div>';
+    return;
+  }
+  body.innerHTML = strategies.map(s => {
+    const running = engineStatus?.strategies?.find(st => st.strategy_id === s.id)?.is_running;
+    return `<div class="strategy-row">
+      <div class="top">
+        <div>
+          <div class="name">${esc(s.name)}</div>
+          <div class="meta">
+            <span>${esc(s.symbol)}</span>
+            <span style="color:var(--cyan)">${esc(s.strategy_type)}</span>
+            <span>${esc(s.period)}</span>
+            <span class="tag ${running ? 'running' : 'stopped'}">${running ? '运行中' : '已停止'}</span>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn btn-sm ${running ? 'btn-danger' : 'btn-success'}"
+            onclick="${running ? `stopStrategy('${s.id}')` : `startStrategy('${s.id}')`}">
+            ${running ? '■ 停止' : '▶ 启动'}
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="deleteStrategy('${s.id}')" title="删除">✕</button>
+        </div>
+      </div>
+      <div style="font-size:.7rem;color:var(--text3);margin-top:4px">
+        ${s.params ? '参数: ' + JSON.stringify(s.params) : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderSignals() {
+  const tbody = document.getElementById('signalsBody');
+  const empty = document.getElementById('signalsEmpty');
+  if (!signals.length) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  tbody.innerHTML = signals.map(s => `<tr style="cursor:pointer" onclick="showSignalDetail(${s.id})">
+    <td style="white-space:nowrap;font-size:.7rem">${s.created_at ? new Date(s.created_at + 'Z').toLocaleTimeString() : '-'}</td>
+    <td class="mono" style="font-size:.72rem">${esc(s.symbol)}</td>
+    <td><span class="tag ${s.direction === 'BUY' ? 'buy' : 'sell'}">${s.direction === 'BUY' ? '买入' : '卖出'}</span></td>
+    <td>${s.qty}</td>
+    <td class="mono">${s.price || '-'}</td>
+    <td class="mono">${s.confidence ? s.confidence.toFixed(2) : '-'}</td>
+    <td class="text-truncate" style="max-width:180px">${esc(s.reason || '')}</td>
+  </tr>`).join('');
+}
+
+function renderTrades() {
+  const tbody = document.getElementById('tradesBody');
+  const empty = document.getElementById('tradesEmpty');
+  if (!trades.length) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  tbody.innerHTML = trades.map(t => `<tr>
+    <td style="white-space:nowrap;font-size:.7rem">${t.created_at ? new Date(t.created_at + 'Z').toLocaleTimeString() : '-'}</td>
+    <td class="mono" style="font-size:.72rem">${esc(t.symbol)}</td>
+    <td><span class="tag ${t.direction === 'BUY' ? 'buy' : 'sell'}">${t.direction === 'BUY' ? '买入' : '卖出'}</span></td>
+    <td>${t.qty}</td>
+    <td><span class="tag ${t.execution_status === 'CONFIRMED' ? 'confirmed' : t.execution_status === 'FAILED' ? 'failed' : 'pending'}">${t.execution_status === 'CONFIRMED' ? '已成交' : t.execution_status === 'FAILED' ? '失败' : '处理中'}</span></td>
+  </tr>`).join('');
+}
+
+function renderPositions() {
+  const tbody = document.getElementById('positionsBody');
+  const empty = document.getElementById('positionsEmpty');
+  if (!positions.length) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  tbody.innerHTML = positions.map(p => `<tr>
+    <td class="mono">${esc(p.symbol)}</td>
+    <td><span class="tag ${p.direction === 'LONG' ? 'buy' : 'sell'}">${p.direction === 'LONG' ? '多头' : '空头'}</span></td>
+    <td class="mono">${p.qty}</td>
+    <td style="font-size:.7rem">${p.updated_at ? new Date(p.updated_at + 'Z').toLocaleTimeString() : '-'}</td>
+  </tr>`).join('');
+}
+
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ═══════════════════════════════════════════════════════
+// Actions
+// ═══════════════════════════════════════════════════════
+async function startStrategy(id) {
+  const r = await apiPost(`/api/strategies/${id}/start`);
+  if (r?.success) { toast('策略已启动', 'success'); refreshAll(); }
+  else toast(r?.error || '启动失败', 'error');
+}
+
+async function stopStrategy(id) {
+  const r = await apiPost(`/api/strategies/${id}/stop`);
+  if (r?.success) { toast('策略已停止', 'info'); refreshAll(); }
+  else toast(r?.error || '停止失败', 'error');
+}
+
+async function deleteStrategy(id) {
+  if (!confirm('确定删除此策略？')) return;
+  const r = await apiDelete(`/api/strategies/${id}`);
+  if (r?.success) { toast('策略已删除', 'info'); refreshAll(); }
+  else toast(r?.error || '删除失败', 'error');
+}
+
+async function triggerPoll() {
+  const r = await apiPost('/api/engine/poll');
+  if (r) toast(`轮询完成: ${r.trades_dispatched} 笔交易`, 'success');
+  else toast('轮询失败 (上游服务离线?)', 'error');
+  refreshAll();
+}
+
+// ═══════════════════════════════════════════════════════
+// Create Strategy Modal
+// ═══════════════════════════════════════════════════════
+function openCreateModal() {
+  document.getElementById('createModal').classList.add('open');
+  // Set default params based on type
+  updateParamsForType();
+}
+
+function closeCreateModal() {
+  document.getElementById('createModal').classList.remove('open');
+}
+
+// Update parameter template when strategy type changes
+document.getElementById('fType')?.addEventListener('change', updateParamsForType);
+
+function updateParamsForType() {
+  const type = document.getElementById('fType')?.value;
+  const ta = document.getElementById('fParams');
+  if (type === 'ma_cross') {
+    ta.value = JSON.stringify({fast_ma: 5, slow_ma: 20, ma_type: 'SMA'}, null, 2);
+  } else if (type === 'rsi_reversal') {
+    ta.value = JSON.stringify({rsi_period: 14, oversold_threshold: 30, overbought_threshold: 70}, null, 2);
+  } else if (type === 'interval_test') {
+    ta.value = JSON.stringify({interval_minutes: 5, start_direction: 'BUY', qty: 1}, null, 2);
+  }
+}
+
+async function createStrategy() {
+  const params = document.getElementById('fParams');
+  const risk = document.getElementById('fRisk');
+  try { JSON.parse(params.value); } catch { toast('参数 JSON 格式错误', 'error'); return; }
+  try { JSON.parse(risk.value); } catch { toast('风控参数 JSON 格式错误', 'error'); return; }
+
+  const body = {
+    name: document.getElementById('fName').value || '未命名策略',
+    symbol: document.getElementById('fSymbol').value,
+    strategy_type: document.getElementById('fType').value,
+    period: document.getElementById('fPeriod').value,
+    description: document.getElementById('fDesc').value,
+    params: JSON.parse(params.value),
+    risk_params: JSON.parse(risk.value),
+  };
+
+  const r = await apiPost('/api/strategies', body);
+  if (r?.success) {
+    toast('策略已创建', 'success');
+    closeCreateModal();
+    refreshAll();
+  } else {
+    toast('创建失败', 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// Signal Detail Modal
+// ═══════════════════════════════════════════════════════
+async function showSignalDetail(id) {
+  // Find from loaded signals
+  const sig = signals.find(s => s.id === id);
+  if (!sig) return;
+  const body = document.getElementById('detailBody');
+  let html = '<div class="detail-grid">';
+  const fieldLabels = {
+    'id': 'ID', 'strategy_id': '策略ID', 'symbol': '合约', 'direction': '方向',
+    'price': '价格', 'qty': '数量', 'confidence': '置信度', 'strength': '强度',
+    'reason': '原因', 'ts_ns': '时间戳', 'created_at': '创建时间',
+    'indicator_values': '指标值',
+  };
+  const fields = ['id','strategy_id','symbol','direction','price','qty','confidence','strength','reason','indicator_values','ts_ns','created_at'];
+  fields.forEach(f => {
+    let val = sig[f];
+    if (val === null || val === undefined) val = '-';
+    if (f === 'created_at' || f === 'ts_ns') {
+      val = val !== '-' ? new Date(String(val).endsWith('Z') ? val : val + 'Z').toLocaleString() : '-';
+    }
+    if (f === 'indicator_values' && typeof val === 'object') val = JSON.stringify(val);
+    html += `<div class="item"><div class="dk">${fieldLabels[f] || f}</div><div class="dv">${esc(String(val))}</div></div>`;
+  });
+  html += '</div>';
+  body.innerHTML = html;
+  document.getElementById('detailModal').classList.add('open');
+}
+
+function closeDetailModal() {
+  document.getElementById('detailModal').classList.remove('open');
+}
+
+function openSignalDetail() {
+  if (!signals.length) { toast('暂无信号可查看', 'info'); return; }
+  showSignalDetail(signals[0].id);
+}
+
+// ═══════════════════════════════════════════════════════
+// Backtest
+// ═══════════════════════════════════════════════════════
+let backtestTasks = [];
+let backtestPollTimer = null;
+let backtestAutoRefreshTimer = null;
+
+function updateBtParamsForType() {
+  const type = document.getElementById('btType')?.value;
+  const ta = document.getElementById('btParams');
+  if (type === 'ma_cross') {
+    ta.value = JSON.stringify({fast_ma: 5, slow_ma: 20, ma_type: 'SMA'});
+  } else if (type === 'rsi_reversal') {
+    ta.value = JSON.stringify({rsi_period: 14, oversold_threshold: 30, overbought_threshold: 70});
+  } else if (type === 'interval_test') {
+    ta.value = JSON.stringify({interval_minutes: 5, start_direction: 'BUY', qty: 1});
+  }
+}
+document.getElementById('btType')?.addEventListener('change', updateBtParamsForType);
+
+async function startBacktest() {
+  const btn = document.querySelector('.btn-primary[onclick*="startBacktest"]');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 提交中...'; }
+
+  const params = document.getElementById('btParams');
+  try { JSON.parse(params.value); } catch { toast('参数 JSON 格式错误', 'error'); if (btn) { btn.disabled = false; btn.innerHTML = '▶ 开始回测'; } return; }
+
+  const body = {
+    strategy_type: document.getElementById('btType').value,
+    symbol: document.getElementById('btSymbol').value,
+    period: document.getElementById('btPeriod').value,
+    start_date: document.getElementById('btStart').value,
+    end_date: document.getElementById('btEnd').value,
+    params: JSON.parse(params.value),
+  };
+
+  const r = await apiPost('/api/backtest/run', body);
+  if (!r?.success) {
+    toast('提交回测失败', 'error');
+    if (btn) { btn.disabled = false; btn.innerHTML = '▶ 开始回测'; }
+    return;
+  }
+  toast('回测任务已提交', 'success');
+  if (btn) { btn.disabled = false; btn.innerHTML = '▶ 开始回测'; }
+
+  // Refresh task list and show results area loading for this task
+  await loadBacktestTaskList();
+  showResultLoading(r.task_id);
+  pollBacktestStatus(r.task_id);
+}
+
+function showResultLoading(taskId) {
+  const resultsArea = document.getElementById('btResults');
+  resultsArea.style.display = 'block';
+  resultsArea.innerHTML =
+    `<div class="bt-loading"><div class="spinner"></div><div>回测执行中...<br><span style="font-size:.7rem;color:var(--text3)">任务ID: ${taskId}</span></div></div>`;
+}
+
+function pollBacktestStatus(taskId) {
+  if (backtestPollTimer) clearInterval(backtestPollTimer);
+
+  backtestPollTimer = setInterval(async () => {
+    const data = await api(`/api/backtest/${taskId}/status`);
+    if (!data) return;
+
+    if (data.status === 'done') {
+      clearInterval(backtestPollTimer);
+      backtestPollTimer = null;
+      await loadBacktestTaskList();
+      loadBacktestResult(taskId);
+    } else if (data.status === 'error') {
+      clearInterval(backtestPollTimer);
+      backtestPollTimer = null;
+      const resultsArea = document.getElementById('btResults');
+      resultsArea.innerHTML = `<div class="bt-loading" style="color:var(--red)">❌ 回测失败: ${esc(data.error)}</div>`;
+      toast('回测执行失败', 'error');
+      await loadBacktestTaskList();
+    } else {
+      // Still running — refresh task list to show updated status
+      loadBacktestTaskList();
+    }
+  }, 1000);
+}
+
+async function loadBacktestTaskList() {
+  const data = await api('/api/backtest/tasks');
+  backtestTasks = data?.tasks || [];
+  renderBacktestTaskList();
+  document.getElementById('btTaskCount').textContent = backtestTasks.length;
+}
+
+function renderBacktestTaskList() {
+  const tbody = document.getElementById('btTasksBody');
+  const empty = document.getElementById('btTasksEmpty');
+
+  if (!backtestTasks.length) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  const statusMap = {
+    pending: ['pending', '排队中'],
+    running: ['running', '运行中'],
+    done: ['confirmed', '已完成'],
+    error: ['failed', '失败'],
+    cancelled: ['stopped', '已取消'],
+  };
+
+  tbody.innerHTML = backtestTasks.map(t => {
+    const [cls, label] = statusMap[t.status] || ['pending', t.status];
+    const paramsStr = JSON.stringify(t.params || {});
+
+    let actions = '';
+    if (t.status === 'running') {
+      actions = `<button class="btn btn-sm btn-danger" onclick="event.stopPropagation();cancelBacktestTask('${t.task_id}')">■ 停止</button>`;
+    } else if (t.status === 'done') {
+      actions = `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();viewBacktestTask('${t.task_id}')">查看</button> <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();replayBacktestTask('${t.task_id}')">⟳ 重放</button>`;
+    } else if (t.status === 'error') {
+      actions = `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();replayBacktestTask('${t.task_id}')">⟳ 重试</button>`;
+    } else if (t.status === 'cancelled') {
+      actions = `<button class="btn btn-outline btn-sm" onclick="event.stopPropagation();replayBacktestTask('${t.task_id}')">▶ 继续</button>`;
+    } else if (t.status === 'pending') {
+      actions = `<button class="btn btn-sm btn-danger" onclick="event.stopPropagation();cancelBacktestTask('${t.task_id}')">✕ 取消</button>`;
+    }
+    actions += ` <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();deleteBacktestTask('${t.task_id}')" style="color:var(--red)">🗑</button>`;
+
+    return `<tr>
+      <td><span class="tag ${cls}">${label}</span></td>
+      <td style="font-size:.72rem">${esc(t.strategy_type)}</td>
+      <td class="mono" style="font-size:.72rem">${esc(t.symbol)}</td>
+      <td style="font-size:.7rem">${esc(t.start_date)} ~ ${esc(t.end_date)}</td>
+      <td style="font-size:.68rem;color:var(--text3);max-width:120px" class="text-truncate" title="${esc(paramsStr)}">${esc(paramsStr)}</td>
+      <td style="font-size:.68rem">${t.created_at ? new Date(t.created_at).toLocaleTimeString() : '-'}</td>
+      <td style="white-space:nowrap">${actions}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function cancelBacktestTask(taskId) {
+  if (!confirm('确定停止此回测任务？')) return;
+  const r = await apiPost(`/api/backtest/${taskId}/cancel`);
+  if (r?.success) { toast('已停止回测任务', 'info'); await loadBacktestTaskList(); }
+  else toast(r?.error || '取消失败', 'error');
+}
+
+async function replayBacktestTask(taskId) {
+  const r = await apiPost(`/api/backtest/${taskId}/replay`);
+  if (r?.success) {
+    toast('已提交重放任务', 'success');
+    await loadBacktestTaskList();
+    showResultLoading(r.task_id);
+    pollBacktestStatus(r.task_id);
+  } else toast(r?.error || '重放失败', 'error');
+}
+
+async function deleteBacktestTask(taskId) {
+  if (!confirm('确定删除此回测任务？')) return;
+  const r = await api(`/api/backtest/${taskId}`, {method: 'DELETE'});
+  if (r?.success) { toast('任务已删除', 'info'); await loadBacktestTaskList(); }
+  else toast(r?.error || '删除失败', 'error');
+}
+
+async function viewBacktestTask(taskId) {
+  loadBacktestResult(taskId);
+}
+
+async function loadBacktestResult(taskId) {
+  const data = await api(`/api/backtest/${taskId}/result`);
+  if (!data) {
+    toast('获取回测结果失败', 'error');
+    return;
+  }
+  if (data.status === 'running') {
+    showResultLoading(taskId);
+    pollBacktestStatus(taskId);
+    return;
+  }
+  if (data.status === 'error') {
+    document.getElementById('btResults').style.display = 'block';
+    document.getElementById('btResults').innerHTML =
+      `<div class="bt-loading" style="color:var(--red)">❌ 回测失败: ${esc(data.error || '未知错误')}</div>`;
+    return;
+  }
+  if (data.status === 'cancelled') {
+    document.getElementById('btResults').style.display = 'block';
+    document.getElementById('btResults').innerHTML =
+      `<div class="bt-loading" style="color:var(--amber)">⏹ 回测已取消</div>`;
+    return;
+  }
+  if (!data.result) {
+    toast('回测结果不可用', 'error');
+    return;
+  }
+
+  displayBacktestResult(data.result);
+}
+
+function displayBacktestResult(r) {
+  const resultsArea = document.getElementById('btResults');
+  resultsArea.style.display = 'block';
+
+  // Metrics
+  const metricsHtml = `
+    <div class="bt-metric"><div class="val ${r.total_pnl >= 0 ? 'green' : 'red'}">${r.total_pnl >= 0 ? '+' : ''}${r.total_pnl.toFixed(2)}</div><div class="lbl">总盈亏 (点)</div></div>
+    <div class="bt-metric"><div class="val blue">${r.total_trades}</div><div class="lbl">交易次数</div></div>
+    <div class="bt-metric"><div class="val ${r.win_rate >= 0.5 ? 'green' : 'red'}">${(r.win_rate * 100).toFixed(1)}%</div><div class="lbl">胜率</div></div>
+    <div class="bt-metric"><div class="val blue">${r.profit_factor === Infinity ? '∞' : r.profit_factor.toFixed(2)}</div><div class="lbl">盈亏比</div></div>
+    <div class="bt-metric"><div class="val amber">${(r.max_drawdown * 100).toFixed(1)}%</div><div class="lbl">最大回撤</div></div>
+    <div class="bt-metric"><div class="val blue">${r.sharpe_ratio ? r.sharpe_ratio.toFixed(2) : 'N/A'}</div><div class="lbl">夏普比率</div></div>
+    <div class="bt-metric"><div class="val">${r.total_bars}</div><div class="lbl">K线数</div></div>
+    <div class="bt-metric"><div class="val ${r.avg_win >= 0 ? 'green' : 'red'}">${r.avg_win.toFixed(2)}</div><div class="lbl">平均盈利</div></div>
+  `;
+  document.getElementById('btMetrics').innerHTML = metricsHtml;
+
+  // Trades table
+  const trades = r.trades || [];
+  document.getElementById('btTradeCount').textContent = trades.length;
+  const tbody = document.getElementById('btTradesBody');
+  const empty = document.getElementById('btTradesEmpty');
+  if (!trades.length) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+  } else {
+    empty.style.display = 'none';
+    tbody.innerHTML = trades.map(t => `<tr>
+      <td style="font-size:.7rem">${t.entry_time ? new Date(t.entry_time).toLocaleString() : '-'}</td>
+      <td><span class="tag ${t.direction === 'BUY' ? 'buy' : 'sell'}">${t.direction === 'BUY' ? '买入' : '卖出'}</span></td>
+      <td class="mono">${t.entry_price.toFixed(2)}</td>
+      <td class="mono">${t.exit_price ? t.exit_price.toFixed(2) : '-'}</td>
+      <td class="mono" style="color:${t.pnl >= 0 ? 'var(--green)' : 'var(--red)'}">${t.pnl >= 0 ? '+' : ''}${t.pnl.toFixed(2)}</td>
+      <td class="text-truncate" style="max-width:160px">${esc(t.reason || '')}</td>
+    </tr>`).join('');
+  }
+
+  // Price chart with buy/sell markers
+  drawBacktestChart(r);
+}
+
+function drawBacktestChart(r) {
+  const canvas = document.getElementById('btChart');
+  const rect = canvas.parentElement.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.max(rect.width - 4, 200);
+  const h = 320;
+
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const prices = r.bar_close || [];
+  const timestamps = r.bar_timestamps || [];
+  const trades = r.trades || [];
+
+  if (!prices.length) {
+    ctx.fillStyle = '#64748b';
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('无数据', w / 2, h / 2);
+    return;
+  }
+
+  const pad = {top: 20, bottom: 24, left: 50, right: 20};
+  const chartW = w - pad.left - pad.right;
+  const chartH = h - pad.top - pad.bottom;
+
+  const minP = Math.min(...prices);
+  const maxP = Math.max(...prices);
+  const range = maxP - minP || 1;
+  const padRange = range * 0.08;
+
+  function xPos(i) { return pad.left + (i / (prices.length - 1)) * chartW; }
+  function yPos(v) { return pad.top + chartH - ((v - minP + padRange) / (range + padRange * 2)) * chartH; }
+
+  // Grid lines
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 4; i++) {
+    const y = pad.top + (chartH / 4) * i;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(w - pad.right, y); ctx.stroke();
+  }
+
+  // Y-axis labels
+  ctx.fillStyle = '#64748b';
+  ctx.font = '11px monospace';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (chartH / 4) * i;
+    const val = maxP + padRange - ((range + padRange * 2) / 4) * i;
+    ctx.fillText(val.toFixed(1), pad.left - 6, y);
+  }
+
+  // X-axis labels (show ~6 labels)
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  const labelStep = Math.max(1, Math.floor(prices.length / 6));
+  for (let i = 0; i < prices.length; i += labelStep) {
+    const x = xPos(i);
+    const label = timestamps[i] ? new Date(timestamps[i]).toLocaleDateString() : '';
+    ctx.fillText(label, x, h - pad.bottom + 4);
+  }
+
+  // Price line
+  ctx.beginPath();
+  ctx.strokeStyle = '#06b6d4';
+  ctx.lineWidth = 1.5;
+  prices.forEach((p, i) => {
+    const x = xPos(i);
+    const y = yPos(p);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Buy/Sell markers
+  trades.forEach(t => {
+    // Find bar index closest to entry_time
+    const entryIdx = timestamps.findIndex(ts => ts >= t.entry_time);
+    if (entryIdx < 0) return;
+
+    const x = xPos(entryIdx);
+    const y = yPos(t.entry_price);
+
+    if (t.direction === 'BUY') {
+      // Green upward triangle
+      ctx.fillStyle = '#22c55e';
+      ctx.beginPath();
+      ctx.moveTo(x, y - 12);
+      ctx.lineTo(x - 6, y - 3);
+      ctx.lineTo(x + 6, y - 3);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      // Red downward triangle
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath();
+      ctx.moveTo(x, y + 12);
+      ctx.lineTo(x - 6, y + 3);
+      ctx.lineTo(x + 6, y + 3);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Draw entry line
+    ctx.strokeStyle = t.direction === 'BUY' ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(x, pad.top); ctx.lineTo(x, pad.top + chartH); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Exit marker if exists
+    if (t.exit_time) {
+      const exitIdx = timestamps.findIndex(ts => ts >= t.exit_time);
+      if (exitIdx > 0) {
+        const ex = xPos(exitIdx);
+        const ey = yPos(t.exit_price || t.entry_price);
+        ctx.strokeStyle = 'rgba(100,116,139,0.3)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 2]);
+        ctx.beginPath(); ctx.moveTo(ex, pad.top); ctx.lineTo(ex, pad.top + chartH); ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Small circle at exit
+        ctx.fillStyle = '#64748b';
+        ctx.beginPath(); ctx.arc(ex, ey, 3, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+  });
+}
+
+async function loadBacktestHistory() {
+  const card = document.getElementById('btHistoryCard');
+  const data = await api('/api/backtest/history');
+  const results = data?.results || [];
+
+  card.style.display = 'block';
+  const tbody = document.getElementById('btHistoryBody');
+  const empty = document.getElementById('btHistoryEmpty');
+
+  if (!results.length) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  tbody.innerHTML = results.map(r => `<tr>
+    <td style="font-size:.72rem">${esc(r.strategy_name)}</td>
+    <td class="mono" style="font-size:.72rem">${esc(r.symbol)}</td>
+    <td style="font-size:.7rem">${r.start_date} ~ ${r.end_date}</td>
+    <td>${r.total_trades}</td>
+    <td>${r.win_rate ? (r.win_rate * 100).toFixed(0) + '%' : '-'}</td>
+    <td class="mono" style="color:${parseFloat(r.total_pnl) >= 0 ? 'var(--green)' : 'var(--red)'}">${r.total_pnl}</td>
+    <td>${r.sharpe_ratio ? r.sharpe_ratio.toFixed(2) : '-'}</td>
+    <td style="font-size:.7rem">${r.created_at ? new Date(r.created_at).toLocaleString() : ''}</td>
+    <td style="white-space:nowrap">
+      <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();loadHistoryToForm('${r.id}')" title="载入参数">📋 载入</button>
+      <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();runFromHistory('${r.id}')" style="color:var(--green)" title="立即回测">▶ 回测</button>
+      <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();deleteBacktestHistory('${r.id}')" style="color:var(--red)" title="删除">🗑</button>
+    </td>
+  </tr>`).join('');
+}
+
+function runHistoryBacktest(strategy, symbol, start, end) {
+  document.getElementById('btType').value = strategy === 'ma_cross' ? 'ma_cross' : 'rsi_reversal';
+  document.getElementById('btSymbol').value = symbol;
+  document.getElementById('btStart').value = start;
+  document.getElementById('btEnd').value = end;
+  updateBtParamsForType();
+  document.getElementById('btHistoryCard').style.display = 'none';
+  toast('已填入历史回测参数', 'info');
+}
+
+// ═══════════════════════════════════════════════════════
+// Backtest History CRUD (增删改)
+// ═══════════════════════════════════════════════════════
+
+async function fetchHistoryRecord(id) {
+  const data = await api('/api/backtest/history');
+  if (!data?.results) return null;
+  return data.results.find(r => String(r.id) === String(id)) || null;
+}
+
+async function loadHistoryToForm(id) {
+  const r = await fetchHistoryRecord(id);
+  if (!r) { toast('无法获取回测记录', 'error'); return; }
+
+  document.getElementById('btType').value = r.strategy_name;
+  document.getElementById('btSymbol').value = r.symbol || '';
+  document.getElementById('btPeriod').value = r.period || '1m';
+  document.getElementById('btStart').value = r.start_date || '';
+  document.getElementById('btEnd').value = r.end_date || '';
+
+  // Parse and fill params
+  try {
+    const params = typeof r.params === 'string' ? JSON.parse(r.params) : (r.params || {});
+    document.getElementById('btParams').value = JSON.stringify(params, null, 2);
+  } catch {
+    document.getElementById('btParams').value = '{}';
+  }
+
+  updateBtParamsForType();
+  document.getElementById('btHistoryCard').style.display = 'none';
+  toast('已载入历史参数，可修改后运行', 'info');
+}
+
+async function runFromHistory(id) {
+  const r = await fetchHistoryRecord(id);
+  if (!r) { toast('无法获取回测记录', 'error'); return; }
+
+  // Fill form
+  document.getElementById('btType').value = r.strategy_name;
+  document.getElementById('btSymbol').value = r.symbol || '';
+  document.getElementById('btPeriod').value = r.period || '1m';
+  document.getElementById('btStart').value = r.start_date || '';
+  document.getElementById('btEnd').value = r.end_date || '';
+
+  try {
+    const params = typeof r.params === 'string' ? JSON.parse(r.params) : (r.params || {});
+    document.getElementById('btParams').value = JSON.stringify(params, null, 2);
+  } catch {
+    document.getElementById('btParams').value = '{}';
+  }
+
+  updateBtParamsForType();
+  document.getElementById('btHistoryCard').style.display = 'none';
+
+  // Immediately start backtest
+  await startBacktest();
+}
+
+async function deleteBacktestHistory(id) {
+  if (!confirm('确定删除此回测历史记录？')) return;
+  const r = await api(`/api/backtest/history/${id}`, {method: 'DELETE'});
+  if (r?.success) {
+    toast('历史记录已删除', 'info');
+    loadBacktestHistory();
+  } else {
+    toast(r?.error || '删除失败', 'error');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// Auto-refresh
+// ═══════════════════════════════════════════════════════
+function startAutoRefresh(interval = 5000) {
+  refreshAll();
+  if (refreshInterval) clearInterval(refreshInterval);
+  refreshInterval = setInterval(refreshAll, interval);
+
+  // Also auto-refresh backtest tasks every 3s (to catch status changes quickly)
+  if (backtestAutoRefreshTimer) clearInterval(backtestAutoRefreshTimer);
+  backtestAutoRefreshTimer = setInterval(async () => {
+    const data = await api('/api/backtest/tasks');
+    if (data?.tasks) {
+      const prev = backtestTasks;
+      backtestTasks = data.tasks;
+      // Only re-render if something changed
+      if (JSON.stringify(prev.map(t => t.task_id + t.status)) !==
+          JSON.stringify(backtestTasks.map(t => t.task_id + t.status))) {
+        renderBacktestTaskList();
+        document.getElementById('btTaskCount').textContent = backtestTasks.length;
+      }
+    }
+  }, 3000);
+}
+
+// ═══════════════════════════════════════════════════════
+// Init
+// ═══════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => startAutoRefresh(5000));
+</script>
+</body>
+</html>

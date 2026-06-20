@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.pyo
+*.db
+data/
+.env
+server.log
+server.err
+server_err.log
+server_out.log
+svr_err.log
+svr_out.log
+.omo/
+.playwright-mcp/
+scripts/server.port
