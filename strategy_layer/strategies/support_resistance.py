@@ -201,18 +201,23 @@ def generate_signals(
         return None
 
     # ── Parameter extraction with explicit bounds ──
-    LOOKBACK_MIN = 50      # SR 区域/成交量分布所需最少 K 线
-    TREND_MA_MIN = 20      # 趋势均线所需最少 K 线
+    LOOKBACK_MIN = 50       # SR 区域/成交量分布所需最少 K 线
+    TREND_MA_MIN = 20       # 趋势均线所需最少 K 线
 
     config_lookback = int(params.get("lookback", 100))
     config_trend_ma = int(params.get("trend_ma_period", 200))
 
-    # lookback: 取配置值与可用数据的最小值，不低于下限
-    lookback = max(min(config_lookback, total_bars), LOOKBACK_MIN)
+    # 上限也可由用户配置，默认 2000/1000
+    lookback_max = int(params.get("lookback_max", 2000))
+    trend_ma_max = int(params.get("trend_ma_max", 1000))
 
-    # trend_ma_period: 取配置值与可用数据的较小值，不低于下限
-    # 留出至少 10 根空位给其他指标计算（ATR/RSI 需要前期数据预热）
-    trend_ma_period = max(min(config_trend_ma, total_bars - 10), TREND_MA_MIN)
+    # lookback: 配置值 ∩ 可用数据 ∩ 用户上限，不低于下限
+    lookback = max(min(config_lookback, total_bars, lookback_max), LOOKBACK_MIN)
+
+    # trend_ma_period: 同上，留出 10 根给其他指标预热
+    trend_ma_period = max(
+        min(config_trend_ma, total_bars - 10, trend_ma_max), TREND_MA_MIN,
+    )
 
     swing_window = int(params.get("swing_window", 3))
     cluster_atr_mult = float(params.get("cluster_atr_mult", 0.5))

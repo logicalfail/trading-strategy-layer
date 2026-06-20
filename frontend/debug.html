@@ -785,7 +785,7 @@ function updateParamsForType() {
   } else if (type === 'interval_test') {
     ta.value = JSON.stringify({interval_minutes: 5, start_direction: 'BUY', qty: 1}, null, 2);
   } else if (type === 'support_resistance') {
-    ta.value = JSON.stringify({lookback: 100, swing_window: 5, rsi_period: 14, oversold: 30, overbought: 70, bounce_atr: 0.3, require_trend: true, trend_ma_period: 200, qty: 1}, null, 2);
+    ta.value = JSON.stringify({lookback: 100, lookback_max: 2000, swing_window: 3, rsi_period: 14, oversold: 30, overbought: 70, bounce_atr: 0.8, require_trend: true, trend_ma_period: 200, trend_ma_max: 1000, qty: 1}, null, 2);
   }
 }
 
@@ -871,7 +871,7 @@ function updateBtParamsForType() {
   } else if (type === 'interval_test') {
     ta.value = JSON.stringify({interval_minutes: 5, start_direction: 'BUY', qty: 1});
   } else if (type === 'support_resistance') {
-    ta.value = JSON.stringify({lookback: 100, swing_window: 3, rsi_period: 14, oversold: 30, overbought: 70, bounce_atr: 0.8, require_trend: true, trend_ma_period: 200, qty: 1});
+    ta.value = JSON.stringify({lookback: 100, lookback_max: 2000, swing_window: 3, rsi_period: 14, oversold: 30, overbought: 70, bounce_atr: 0.8, require_trend: true, trend_ma_period: 200, trend_ma_max: 1000, qty: 1});
   }
 }
 document.getElementById('btType')?.addEventListener('change', updateBtParamsForType);
