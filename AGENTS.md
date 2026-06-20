@@ -185,3 +185,15 @@ All Pydantic v2 models use `model_dump(mode="json")` for API responses. Never us
 - **Signals must cross a threshold** — strategies only fire when RSI or MA *crosses* the threshold (not while already beyond it). See [ma_cross.py](file:///C:/trading_strategy_layer/strategy_layer/strategies/ma_cross.py#L88) `prev_diff <= 0 < curr_diff`.
 - **Position cache** — `RiskManager` holds an in-memory dict synced to DB. Not reloaded from execution_layer on restart (only via explicit `sync_from_execution()`).
 - **`get_conn()` transaction behavior** — the context manager commits on success, rolls back on `Exception`, and always closes the connection. Use for any DB read or write.
+
+### Backtest signal time alignment (CRITICAL)
+Backtest calculates signals by replaying bars one by one. **Every strategy's backtest signal function must derive timing from `bars[-1].ts_ns` (the current bar's K-line timestamp), NOT from wall clock (`time.time()`) or any other external timer.**
+
+This is required because:
+1. **Frontend chart buy/sell markers** — the backtest result `bar_timestamps` array is built from bar timestamps. A trade's `entry_time`/`exit_time` must align with actual bar timestamps, otherwise the scatter markers on the price chart will be misplaced or invisible.
+2. **Replay determinism** — wall clock during backtest is unpredictable (accelerated or paused). Using `time.time()` would produce non-reproducible, timestamp-misaligned results.
+3. **Interval strategies** — for timer-based strategies like `interval_test`, the backtest version MUST use `bars[-1].ts_ns / 1e9` for interval comparison (see [backtest.py:_interval_test_signal](file:///C:/trading_strategy_layer/strategy_layer/backtest.py#L467)), while the live version uses `time.time()` ([interval_test.py:L49](file:///C:/trading_strategy_layer/strategy_layer/strategies/interval_test.py#L49)). **They are intentionally different.**
+
+Rule of thumb:
+- **Live `generate_signals()`** — can use wall clock (`time.time()`) for timer-based strategies, or no time at all for state-based strategies (MA, RSI, SR).
+- **Backtest `_xxx_signal()`** — MUST reference `bars[-1].ts_ns / 1e9` for any time-dependent logic. State-based strategies (MA, RSI) inherently use bar data and don't need explicit time, but if they did, they'd use bar timestamps.

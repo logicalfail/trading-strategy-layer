@@ -196,10 +196,24 @@ def generate_signals(
     Fires when price touches a significant SR level with RSI confirmation,
     optionally filtered by long-term trend.
     """
-    if len(bars) < 100:
+    total_bars = len(bars)
+    if total_bars < 100:
         return None
 
-    lookback = int(params.get("lookback", 100))
+    # ── Parameter extraction with explicit bounds ──
+    LOOKBACK_MIN = 50      # SR 区域/成交量分布所需最少 K 线
+    TREND_MA_MIN = 20      # 趋势均线所需最少 K 线
+
+    config_lookback = int(params.get("lookback", 100))
+    config_trend_ma = int(params.get("trend_ma_period", 200))
+
+    # lookback: 取配置值与可用数据的最小值，不低于下限
+    lookback = max(min(config_lookback, total_bars), LOOKBACK_MIN)
+
+    # trend_ma_period: 取配置值与可用数据的较小值，不低于下限
+    # 留出至少 10 根空位给其他指标计算（ATR/RSI 需要前期数据预热）
+    trend_ma_period = max(min(config_trend_ma, total_bars - 10), TREND_MA_MIN)
+
     swing_window = int(params.get("swing_window", 3))
     cluster_atr_mult = float(params.get("cluster_atr_mult", 0.5))
     atr_period = int(params.get("atr_period", 14))
@@ -207,7 +221,6 @@ def generate_signals(
     oversold = float(params.get("oversold", 30))
     overbought = float(params.get("overbought", 70))
     bounce_atr = float(params.get("bounce_atr", 0.8))
-    trend_ma_period = int(params.get("trend_ma_period", 200))
     require_trend = bool(params.get("require_trend", True))
     vol_bins = int(params.get("vol_profile_bins", 20))
     qty = int(params.get("qty", 1))
@@ -215,6 +228,7 @@ def generate_signals(
     # Build DataFrames
     window_bars = bars[-lookback:]
     df = _to_df(window_bars)
+    full_df = _to_df(bars)
 
     # Current/latest values
     latest = bars[-1]
@@ -223,7 +237,6 @@ def generate_signals(
     curr_low = latest.low
 
     # ATR for distance scaling
-    full_df = _to_df(bars)
     atr_series = _atr(full_df["high"], full_df["low"], full_df["close"], atr_period)
     if atr_series.empty or pd.isna(atr_series.iloc[-1]):
         return None
@@ -235,17 +248,15 @@ def generate_signals(
         return None
     curr_rsi = rsi_series.iloc[-1]
 
-    # Trend filter: price vs SMA
-    trend_ok = True
-    if require_trend and len(bars) >= trend_ma_period:
+    # Trend filter: price vs SMA (adaptive period)
+    # 有效趋势周期 = 配置值，但不超过可用数据（受 total_bars 和 trend_ma_period 共同约束）
+    if require_trend:
         sma_series = _sma(full_df["close"], trend_ma_period)
-        if not sma_series.empty and not pd.isna(sma_series.iloc[-1]):
-            trend_up = curr_close > sma_series.iloc[-1]
-            trend_ok = trend_up  # uptrend allows long only
-            # Will be used per-direction below
-        else:
-            trend_ok = False
-            trend_up = True
+        trend_up = (
+            not sma_series.empty
+            and not pd.isna(sma_series.iloc[-1])
+            and curr_close > sma_series.iloc[-1]
+        )
     else:
         trend_up = True
 
