@@ -308,6 +308,7 @@ input[type=date]{color-scheme:dark}
               <option value="rsi_reversal">RSI 反转</option>
               <option value="interval_test">定时测试 (Interval)</option>
               <option value="support_resistance">支撑阻力反弹 (SR Bounce)</option>
+              <option value="swing_extremum">极值点交易 (Swing)</option>
             </select>
           </div>
           <div class="form-group">
@@ -433,6 +434,7 @@ input[type=date]{color-scheme:dark}
               <option value="rsi_reversal">RSI 反转</option>
               <option value="interval_test">定时测试</option>
               <option value="support_resistance">支撑阻力反弹</option>
+              <option value="swing_extremum">极值点交易</option>
             </select>
         </div>
         <div class="form-group">
@@ -786,6 +788,8 @@ function updateParamsForType() {
     ta.value = JSON.stringify({interval_minutes: 5, start_direction: 'BUY', qty: 1}, null, 2);
   } else if (type === 'support_resistance') {
     ta.value = JSON.stringify({lookback: 100, lookback_max: 2000, swing_window: 3, rsi_period: 14, oversold: 30, overbought: 70, bounce_atr: 0.8, require_trend: true, trend_ma_period: 200, trend_ma_max: 1000, qty: 1}, null, 2);
+  } else if (type === 'swing_extremum') {
+    ta.value = JSON.stringify({swing_window: 5, rsi_period: 14, oversold: 30, overbought: 70, require_rsi: true, lookback: 200, qty: 1}, null, 2);
   }
 }
 
@@ -872,6 +876,8 @@ function updateBtParamsForType() {
     ta.value = JSON.stringify({interval_minutes: 5, start_direction: 'BUY', qty: 1});
   } else if (type === 'support_resistance') {
     ta.value = JSON.stringify({lookback: 100, lookback_max: 2000, swing_window: 3, rsi_period: 14, oversold: 30, overbought: 70, bounce_atr: 0.8, require_trend: true, trend_ma_period: 200, trend_ma_max: 1000, qty: 1});
+  } else if (type === 'swing_extremum') {
+    ta.value = JSON.stringify({swing_window: 5, rsi_period: 14, oversold: 30, overbought: 70, require_rsi: true, lookback: 200, qty: 1});
   }
 }
 document.getElementById('btType')?.addEventListener('change', updateBtParamsForType);

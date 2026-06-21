@@ -360,6 +360,9 @@ class StrategyEngine:
         elif strategy_type == "support_resistance":
             from .strategies import support_resistance
             return support_resistance.generate_signals(bars, params, strategy_id, symbol)
+        elif strategy_type == "swing_extremum":
+            from .strategies import swing_extremum
+            return swing_extremum.generate_signals(bars, params, strategy_id, symbol)
         else:
             log.warning("Unknown strategy type: %s", strategy_type)
             return None

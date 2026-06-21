@@ -405,6 +405,8 @@ def _generate_signal(
         return _interval_test_signal(bars, params, symbol, strategy_id)
     elif strategy_type == "support_resistance":
         return _support_resistance_signal(bars, params, symbol)
+    elif strategy_type == "swing_extremum":
+        return _swing_extremum_signal(bars, params, symbol)
     log.warning("Unknown strategy type for backtest: %s", strategy_type)
     return None
 
@@ -501,6 +503,33 @@ def _support_resistance_signal(
     """Support/resistance bounce signal for backtest."""
     from .strategies.support_resistance import generate_signals as sr_signal
     sig = sr_signal(bars, params, "backtest", symbol)
+    if sig is None:
+        return None
+    return {
+        "direction": sig.direction.value,
+        "price": sig.price or bars[-1].close,
+        "reason": sig.reason,
+    }
+
+
+def _swing_extremum_signal(
+    bars: List[BarData],
+    params: Dict[str, Any],
+    symbol: str,
+) -> Optional[Dict[str, Any]]:
+    """Swing extremum signal for backtest.
+
+    Resets module-level state on the very first bar so each
+    backtest run starts fresh. After that, state persists
+    across bar iterations within one run naturally.
+    """
+    from .strategies.swing_extremum import generate_signals as sw_signal
+    from .strategies.swing_extremum import reset_state as sw_reset
+    # First bar of a new run → reset state from any previous run
+    if len(bars) <= 1:
+        sw_reset("backtest", symbol)
+
+    sig = sw_signal(bars, params, "backtest", symbol)
     if sig is None:
         return None
     return {
