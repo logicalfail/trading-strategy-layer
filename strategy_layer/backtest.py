@@ -149,6 +149,11 @@ def run_backtest(
     Fetches data from futures_demo, replays bar by bar,
     and computes performance metrics.
     """
+    # Clear state dicts from any previous run so replay / repeated
+    # calls start fresh (previously the stale state would suppress signals).
+    _bt_interval_last.clear()
+    _bt_interval_parity.clear()
+
     result = BacktestResult(
         strategy_name=strategy_type,
         symbol=symbol,
@@ -677,19 +682,26 @@ class BacktestTaskManager:
 
     def replay(self, task_id: str) -> Optional[str]:
         """Re-run a task with the same parameters. Returns new task_id."""
+        # Extract data under lock, then release before calling submit()
+        # (submit() acquires the same lock — would deadlock if nested)
         with self._lock:
             info = self._tasks.get(task_id)
             if not info:
                 return None
-            # Copy params from existing task
-            return self.submit(
-                strategy_type=info.strategy_type,
-                symbol=info.symbol,
-                params=info.params,
-                start_date=info.start_date,
-                end_date=info.end_date,
-                period=info.period,
-            )
+            strategy_type = info.strategy_type
+            symbol = info.symbol
+            params = info.params
+            start_date = info.start_date
+            end_date = info.end_date
+            period = info.period
+        return self.submit(
+            strategy_type=strategy_type,
+            symbol=symbol,
+            params=params,
+            start_date=start_date,
+            end_date=end_date,
+            period=period,
+        )
 
     def delete(self, task_id: str) -> bool:
         """Delete a task (cancel if running, then remove)."""

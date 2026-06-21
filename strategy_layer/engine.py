@@ -312,6 +312,11 @@ class StrategyEngine:
 
                 # Translate signal → order
                 order_payload = translate_signal(signal)
+                # place_order() reconstructs order_type from price internally,
+                # and expects Direction enum (not string). Strip incompatible fields.
+                order_payload.pop("order_type", None)
+                if "direction" in order_payload and isinstance(order_payload["direction"], str):
+                    order_payload["direction"] = Direction(order_payload["direction"])
 
                 # Log trade attempt
                 trade = self._log_trade(signal, risk_result, order_payload)
